@@ -16,7 +16,7 @@ Mail Sender is an Electron application that allows users to send multiple emails
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/Subu1987/Mail-Sender.git
+   git clone https://github.com/Subu1987/Multi-Mail-Sender-Infocus.git
    ```
 
 2. **Install dependencies:**
