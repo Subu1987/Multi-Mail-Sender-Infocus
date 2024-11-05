@@ -44,9 +44,9 @@ h1 {
 }
 
 .formbox {
-    height: 400px;
+    height: auto;
     width: 450px;
-    padding: 30px;
+    padding: 10px 40px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -150,7 +150,7 @@ h1 {
     font-weight: bold;
 }
 
-#loadingBox {
+#loadingBox{
     width: 50px;
     height: 50px;
     border-radius: 50%;
@@ -190,13 +190,16 @@ h1 {
 
 .ring {
     position: absolute;
-    top: 60%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 40px;
     height: 40px;
     border: 3px solid #5ed628;
     /* Replace this with your desired ring color */
     border-radius: 50%;
     position: relative;
+    z-index: 12;
 }
 
 .number {
@@ -207,12 +210,13 @@ h1 {
     font-size: 1.3rem;
     font-weight: bold;
     color: #5ed628;
+    z-index: 12;
     /* Replace this with your desired number color */
 }
 
 #messageBox {
     position: absolute;
-    top: 10%;
+    top: 5%;
     left: 50%;
     transform: translate(-50%, -50%);
     padding: 5px 30px;

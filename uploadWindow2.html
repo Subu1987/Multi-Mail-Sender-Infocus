@@ -43,21 +43,25 @@
           <div class="number" id="mailCountNo">0</div>
         </div>
       </div>
+
       <div id="messageBox" class="hidden">
         <p id="messageText"></p>
       </div>
+
       <div id="loadingBox">
         <div id="loading" class="hidden">
           <img src="./image/loading3d.gif" alt="Sending..." />
         </div>
       </div>
+
       <form id="formbox1" class="formbox">
         <div class="logoBox">
           <div class="logo">
-            <img src="./image/logo.png" />
+            <img src="./image/comLogo.png" />
           </div>
           <h1>Multifile Mail Sender</h1>
         </div>
+        
         <div class="contentone">
           <input
             type="email"
@@ -81,6 +85,42 @@
             placeholder="Password"
           />
           <i class="fa fa-eye" id="togglePassword"></i>
+        </div>
+
+        <div class="contentone">
+          <input
+            type="text"
+            id="Subject"
+            name="Subject"
+            required
+            class="form-control inputColor"
+            placeholder="Subject"
+          />
+          <!-- <i class="fa fa-eye" id="togglePassword"></i> -->
+        </div>
+
+        <div class="contentone">
+          <input
+            type="text"
+            id="mailBody"
+            name="Mail Body"
+            required
+            class="form-control inputColor"
+            placeholder="Mail Body"
+          />
+          <!-- <i class="fa fa-eye" id="togglePassword"></i> -->
+        </div>
+
+        <div class="contentone">
+          <input
+            type="text"
+            id="Closing"
+            name="Closing"
+            required
+            class="form-control inputColor"
+            placeholder="Closing Signature"
+          />
+          <!-- <i class="fa fa-eye" id="togglePassword"></i> -->
         </div>
 
         <div class="contentone">
@@ -124,7 +164,10 @@
           >
             Send
           </button>
+          
         </div>
+
+      
       </form>
       <footer>
         <p>

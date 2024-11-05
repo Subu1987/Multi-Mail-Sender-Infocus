@@ -57,8 +57,8 @@ function createFileUpload() {
       contextIsolation: false,
       enableRemoteModule: true,
     },
-    autoHideMenuBar: false,
-    icon: "./assets/icons/win/icon.ico"
+    autoHideMenuBar: true,
+    icon: "./assets/icons/win/infocus.ico"
   });
   // Process to Load HTML in Main Window
   uploadWindow.loadURL(

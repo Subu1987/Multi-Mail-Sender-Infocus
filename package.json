@@ -1,6 +1,6 @@
 {
   "name": "multifile-mail-sender",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Automatic Mail Sender to the users",
   "main": "main.js",
   "scripts": {
@@ -28,6 +28,6 @@
   "build": {
     "appId": "multifile-mail-sender",
     "productName": "Multifile Mail Sender",
-    "icon": "./assets/icons/win/logo.ico"
+    "icon": "./assets/icons/win/infocus.ico"     
   }
 }

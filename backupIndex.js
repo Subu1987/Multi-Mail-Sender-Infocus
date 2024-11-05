@@ -12,6 +12,9 @@ const mailCountNo = document.getElementById('mailCountNo');
 
 let mail_ID = "";
 let password = "";
+let subject = "";
+let mailBody = "";
+let closing = "";
 let dirPath = "";
 let path1 = "";
 let logFilePath = "";
@@ -88,6 +91,9 @@ function isEmailValid(mail_ID) {
 function formValidation() {
   mail_ID = document.getElementById("Email").value.trim();
   password = passwordInput.value.trim();
+  subject = document.getElementById("Subject").value.trim();
+  mailBody = document.getElementById("mailBody").value.trim();
+  closing = document.getElementById("Closing").value.trim();
   const excelFile = document.getElementById("excel").value.trim();
   dirPath = document.getElementById("dirPath").value.trim();
 
@@ -97,6 +103,18 @@ function formValidation() {
 
   passwordInput.addEventListener("focus", () => hideValidationMessage(passwordInput));
   passwordInput.addEventListener("input", () => hideValidationMessage(passwordInput));
+
+  const subjectInput = document.getElementById("Subject");
+  subjectInput.addEventListener("focus", () => hideValidationMessage(subjectInput));
+  subjectInput.addEventListener("input", () => hideValidationMessage(subjectInput));
+
+  const mailBodyInput = document.getElementById("mailBody");
+  mailBodyInput.addEventListener("focus", () => hideValidationMessage(mailBodyInput));
+  mailBodyInput.addEventListener("input", () => hideValidationMessage(mailBodyInput));
+
+  const closingInput = document.getElementById("Closing");
+  closingInput.addEventListener("focus", () => hideValidationMessage(closingInput));
+  closingInput.addEventListener("input", () => hideValidationMessage(closingInput));
 
   const excelInput = document.getElementById("excel");
   excelInput.addEventListener("focus", () => hideValidationMessage(excelInput));
@@ -120,6 +138,21 @@ function formValidation() {
 
   if (password.trim() === "") {
     showValidationMessage(passwordInput, "Please enter a password.");
+    return false;
+  }
+
+  if (subject.trim() === "") {
+    showValidationMessage(subjectInput, "Please enter a Subject.");
+    return false;
+  }
+
+  if (mailBody.trim() === "") {
+    showValidationMessage(mailBodyInput, "Please enter a Mail Body.");
+    return false;
+  }
+
+  if (closing.trim() === "") {
+    showValidationMessage(closingInput, "Please enter a Closing.");
     return false;
   }
 
@@ -152,8 +185,11 @@ function showMessage(message, isSuccess) {
   setTimeout(() => messageBox.style.display = "none", 5000);
 }
 
-// Create a rate limiter with a limit of 5 emails per second
-const limiter = new Bottleneck({ maxConcurrent: 5, minTime: 200 });
+// Create a rate limiter with a limit of 1 email per 2 seconds
+const limiter = new Bottleneck({
+  maxConcurrent: 1,
+  minTime: 2000 // 2000ms = 2 seconds
+});
 let mailCount = 0;
 
 // Function to send files as email attachments
@@ -161,7 +197,7 @@ async function sendFiles() {
   if (!formValidation()) return;
 
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    service: "hotmail",
     auth: { user: mail_ID, pass: password },
     retry: { retries: 5, factor: 2, minTimeout: 1000 }
   });
@@ -219,14 +255,16 @@ async function sendFiles() {
           }
         }
 
-        const downloadName = item['TRADER NAME'] + ".zip";
+        const downloadName = item['Employee Name']+ "_" + item['CODE1']+ "_" +"FY" +item['FY'] +"_" + "FORM_16" + ".zip";
         zip.writeZip(filePath + downloadName);
+
+        const closingValue = `Thanks & regards,\n${closing} \nInfocus Technologies Pvt ltd`;
 
         const mailOptions = {
           from: mail_ID,
           to: item["E mail"],
-          subject: "File Attachment",
-          text: `Hi ${item['TRADER NAME']}, please check the attachments`,
+          subject: subject,
+          text: `Dear ${item['Employee Name']}, \n\n${mailBody}\n\n\n${closingValue}`,
           attachments: [
             {
               filename: downloadName,
