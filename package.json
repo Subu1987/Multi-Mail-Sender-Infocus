@@ -3,11 +3,14 @@
   "version": "1.0.2",
   "description": "Automatic Mail Sender to the users",
   "main": "main.js",
-  "scripts": {
-    "start": "nodemon --exec electron ."
-  },
   "author": "Infocus Technologies Pvt Ltd",
   "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "build": "electron-builder",
+    "clean": "rimraf dist"
+  },
   "dependencies": {
     "adm-zip": "^0.5.10",
     "archiver": "^5.3.1",
@@ -23,11 +26,30 @@
   },
   "devDependencies": {
     "electron": "^25.4.0",
-    "electron-packager": "^17.1.1"
+    "electron-builder": "^24.0.0"
   },
   "build": {
-    "appId": "multifile-mail-sender",
+    "appId": "com.infocus.multifile-mailsender",
     "productName": "Multifile Mail Sender",
-    "icon": "./assets/icons/win/infocus.ico"     
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "./assets/icons/win/infocus.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Multifile Mail Sender"
+    }
   }
 }

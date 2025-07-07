@@ -2,8 +2,8 @@ const Bottleneck = require("bottleneck");
 const { ipcRenderer } = require("electron");
 const XLSX = require("xlsx");
 const nodemailer = require("nodemailer");
-const AdmZip = require("adm-zip");
 const fs = require("fs");
+const path = require("path");
 
 const formElement = document.getElementById("formbox1");
 const loadingElement = document.getElementById("loading");
@@ -210,65 +210,66 @@ async function sendFiles() {
   const sheet_name_list = workbook.SheetNames;
   const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheet_name_list[0]]);
 
-  const filteredData = data.filter(obj => obj.hasOwnProperty("E mail"));
+  const filteredData = data.filter(obj => obj.hasOwnProperty("MAIL ID"));
 
   if (filteredData.length === 0) {
-    showMessage("Invalid Excel format. No valid data with 'E mail' property found.", false);
+    showMessage("Invalid Excel format. No valid data with 'MAIL ID' property found.", false);
     loadingElement.style.display = "none";
     mailCountBox.style.display = "none";
     formElement.classList.remove("blur");
     return;
   }
 
-  let maxCodeFileNo = 0;
-  filteredData.forEach(obj => {
-    Object.keys(obj).forEach(key => {
-      if (key.startsWith("CODE")) {
-        const codeFileNo = parseInt(key.substring(4));
-        if (codeFileNo > maxCodeFileNo) {
-          maxCodeFileNo = codeFileNo;
-        }
-      }
-    })
-  });
-
   try {
     await Promise.all(
       filteredData.map(async (item) => {
-        // Create a new instance of AdmZip for each recipient
-        const zip = new AdmZip();
-        let filePath = dirPath; // Set the correct filePath for each email
+        let filePath = dirPath;
+        let pan = item["PAN NAME"];
+        let filesInFolder = fs.readdirSync(filePath);
         let filesToSend = [];
 
-        for (let i = 1; i <= maxCodeFileNo; i++) {
-          if (!item[`CODE${i}`]) {
-            continue;
-          } else {
-            const fileName = item[`CODE${i}`] + ".pdf";
-            if (fs.existsSync(filePath + fileName)) {
-              zip.addLocalFile(filePath + item[`CODE${i}`] + ".pdf");
-              filesToSend.push(item[`CODE${i}`]); // Collect files to be sent for logging
-            } else {
-              // showMessage(`File ${fileName} not found. Skipping...`, false);
-              console.warn(`File ${fileName} not found. Skipping...`);
-            }
-          }
+        const matchedFileName = filesInFolder.find(file => file.includes(pan));
+
+        const logTime = () =>
+          new Date().toLocaleString('en-US', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: true
+          });
+
+        if (!matchedFileName) {
+          const msg = `No file found for PAN ${pan}. Skipping...`;
+          showMessage(msg, false);
+          fs.appendFileSync(logFilePath, `${logTime()} - FAILED: ${msg} [Recipient: ${item["MAIL ID"]}]\n`);
+          return;
         }
 
-        const downloadName = item['Employee Name']+ "_" + item['CODE1']+ "_" +"FY" +item['FY'] +"_" + "FORM_16" + ".zip";
-        zip.writeZip(filePath + downloadName);
+        const fullFilePath = path.join(filePath, matchedFileName);
+
+        if (!fs.existsSync(fullFilePath)) {
+          const msg = `Expected PDF file ${matchedFileName} does not exist. Skipping...`;
+          showMessage(msg, false);
+          fs.appendFileSync(logFilePath, `${logTime()} - FAILED: ${msg} [Recipient: ${item["MAIL ID"]}]\n`);
+          return;
+        }
+
+        filesToSend.push(matchedFileName);
 
         const closingValue = `Thanks & regards,\n${closing} \nInfocus Technologies Pvt ltd`;
 
         const mailOptions = {
           from: mail_ID,
-          to: item["E mail"],
+          to: item["MAIL ID"],
           subject: subject,
-          text: `Dear ${item['Employee Name']}, \n\n${mailBody}\n\n\n${closingValue}`,
+          text: `Dear ${item['NAME']}, \n\n${mailBody}\n\n\n${closingValue}`,
           attachments: [
             {
-              filename: downloadName,
-              path: filePath + downloadName,
+              filename: matchedFileName,
+              path: fullFilePath,
             },
           ],
         };
@@ -278,54 +279,39 @@ async function sendFiles() {
             return new Promise((resolve, reject) => {
               transporter.sendMail(mailOptions, function (error, info) {
                 if (error) {
-                  console.log(error);
-                  mailCount = 0;
+                  const errorMsg = error.response ? error.message.replace(/^Error:\s(.+?)\s\[.+/, "$1") : "Error sending email.";
+                  showMessage(errorMsg, false);
+                  fs.appendFileSync(logFilePath, `${logTime()} - FAILED: Email NOT sent to: ${item["MAIL ID"]}, Reason: ${error.message}\n`);
                   mailCountBox.style.display = "none";
-                  showMessage(error.response ? error.message.replace(/^Error:\s(.+?)\s\[.+/, "$1") : "Error sending email. Please try again later.", false);
                   reject(error);
                 } else {
                   console.log("Email sent: " + info.response);
                   mailCount++;
                   mailCountNo.textContent = mailCount;
+                  fs.appendFileSync(logFilePath, `${logTime()} - SUCCESS: Email sent to: ${item['MAIL ID']}, Files: ${filesToSend.join(", ")}\n`);
                   resolve(info);
                 }
               });
-            }).then(() => {
-              // Log the email sent along with the files for this recipient
-              let currentDate = new Date().toLocaleString('en-US', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: 'numeric',
-                second: 'numeric',
-                hour12: true
-              });
-              let logEntry = `${currentDate} - Email sent to: ${item['E mail']}, Files: ${filesToSend.join(", ")}`;
-              fs.appendFileSync(logFilePath, logEntry + '\n');
-
             });
           });
         } catch (error) {
           console.error("Email sending failed!", error);
-          throw error;
         } finally {
-          // Delete the zip file after email is sent successfully
-          fs.unlinkSync(filePath + downloadName);
-          filePath = dirPath; // Reset filePath for the next email iteration
+          filePath = dirPath; // reset for next loop
         }
-
       })
     );
+
     mailCountBox.style.display = "none";
-    showMessage(`All Emails Sent Successfully : [\u0020${mailCount}\u0020]`, true);
+    showMessage(`All Emails Sent Successfully : [ ${mailCount} ]`, true);
     mailCount = 0;
   } catch (error) {
-    showMessage(error, false);
+    showMessage(error.toString(), false);
   } finally {
     loadingElement.style.display = "none";
     formElement.classList.remove("blur");
     mailCountNo.textContent = 0;
     document.getElementById("formbox1").reset();
   }
+
 }
