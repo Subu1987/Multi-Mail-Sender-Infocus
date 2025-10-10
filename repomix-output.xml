@@ -1,0 +1,1779 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+backupIndex.js
+index.js
+main.js
+package.json
+particle-animation.js
+photon.min.css
+README.md
+style.css
+style2.css
+uploadWindow.html
+uploadWindow2.html
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="index.js">
+const Bottleneck = require("bottleneck");
+const fs = require("fs");
+const path = require("path");
+const ipc = require("electron").ipcRenderer;
+const XLSX = require("xlsx");
+const nodemailer = require("nodemailer");
+// const archiver = require('archiver');
+const AdmZip = require("adm-zip");
+const { electron } = require("process");
+const { dialog, ipcMain, ipcRenderer } = require("electron");
+
+fileName = document.getElementById("fileName");
+fileContents = document.getElementById("fileContents");
+fileContents2 = document.getElementById("fileContents2");
+btnRead = document.getElementById("btnRead");
+
+let pathName = path.join(__dirname, "Files");
+let mail_ID = "";
+let password = "";
+let mailSubject = "";
+let mailBody = "";
+let dirPath = "";
+let Data = [];
+let path1 = "";
+
+// chk password visibiity
+const togglePassword = document.getElementById("togglePassword");
+const passwordInput = document.getElementById("Password");
+togglePassword.addEventListener("click", function () {
+  if (passwordInput.getAttribute("type") === "password") {
+    passwordInput.setAttribute("type", "text");
+  } else {
+    passwordInput.setAttribute("type", "password");
+  }
+
+  togglePassword.classList.toggle("fa-eye-slash");
+});
+
+// send files
+const element = document.getElementById("sendFiles");
+element.addEventListener("click", sendFiles);
+
+// excel sheet upload
+function upload(event) {
+  // console.log("The Upload Function is called")
+  ipc.send("open-file-dialog-for-file");
+  ipc.on("selected-file", function (event, path) {
+    //event.preventDefault();
+    // let path1 = path.basename(pathName);
+    path1 = path;
+    path1 = path1.toString();
+    let index = path1.lastIndexOf("\\");
+    let fileName = path1.slice(index + 1);
+    document.getElementById("excel").value = fileName;
+
+    hideValidationMessage(document.getElementById("excel"));
+  });
+}
+
+// get the directory path
+function onDirectorySelected(event) {
+  ipcRenderer.send("open-directory-dialog");
+
+  ipcRenderer.on("selected-directory", (event, path) => {
+    // event.preventDefault();
+    console.log(`Selected directory: ${path}`);
+    dirPath = `${path}`.toString() + "/";
+
+    console.log(dirPath);
+    document.getElementById("dirPath").value = dirPath;
+
+    hideValidationMessage(document.getElementById("dirPath"));
+  });
+}
+
+// show validation msg
+function showValidationMessage(inputElement, message) {
+  // Check if a previous validation message exists for the input field
+  const existingValidationMessage = inputElement.parentNode.querySelector(
+    ".validation-message"
+  );
+  if (existingValidationMessage) {
+    existingValidationMessage.remove();
+  }
+
+  const validationMessage = document.createElement("div");
+  validationMessage.className = "validation-message";
+  validationMessage.textContent = message;
+  inputElement.parentNode.appendChild(validationMessage);
+}
+
+// hide validation msg
+function hideValidationMessage(inputElement) {
+  const validationMessage = inputElement.parentNode.querySelector(
+    ".validation-message"
+  );
+  if (validationMessage) {
+    validationMessage.remove();
+  }
+}
+
+// email validation
+function isEmailValid(mail_ID) {
+  // Regular expression to validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(mail_ID);
+}
+
+// form validation
+function formValidation() {
+        mail_ID = document.getElementById("Email").value.trim();
+        password = document.getElementById("Password").value.trim();
+  const excelFile = document.getElementById("excel").value.trim();
+  const dirPath = document.getElementById("dirPath").value.trim();
+
+  const emailInput = document.getElementById("Email");
+  emailInput.addEventListener("focus", () => hideValidationMessage(emailInput));
+  emailInput.addEventListener("input", () => hideValidationMessage(emailInput));
+
+  const passwordInput = document.getElementById("Password");
+  passwordInput.addEventListener("focus", () =>
+    hideValidationMessage(passwordInput)
+  );
+  passwordInput.addEventListener("input", () =>
+    hideValidationMessage(passwordInput)
+  );
+
+  const excelInput = document.getElementById("excel");
+  excelInput.addEventListener("focus", () => hideValidationMessage(excelInput));
+  excelInput.addEventListener("input", () => hideValidationMessage(excelInput));
+
+  const dirPathInput = document.getElementById("dirPath");
+
+  if (dirPathInput.value === "") {
+    hideValidationMessage(dirPathInput);
+  }
+
+  dirPathInput.addEventListener("focus", () =>
+    hideValidationMessage(dirPathInput)
+  );
+  dirPathInput.addEventListener("input", () =>
+    hideValidationMessage(dirPathInput)
+  );
+
+  // chk email not blank & valid email
+  if (mail_ID.trim() === "") {
+    showValidationMessage(
+      document.getElementById("Email"),
+      "Please enter an email address."
+    );
+    return false;
+  } else if (!isEmailValid(mail_ID)) {
+    showValidationMessage(
+      document.getElementById("Email"),
+      "Please enter a valid email address."
+    );
+    return false;
+  } else {
+    hideValidationMessage(document.getElementById("Email"));
+  }
+
+  // chk pass not blanked
+  if (password.trim() === "") {
+    showValidationMessage(
+      document.getElementById("Password"),
+      "Please enter a password."
+    );
+    return false;
+  } else {
+    hideValidationMessage(document.getElementById("Password"));
+  }
+  passwordInput.addEventListener("focus", () =>
+    hideValidationMessage(passwordInput)
+  );
+
+  // chk excel not blank & file format correct
+  if (excelFile.trim() === "") {
+    showValidationMessage(
+      document.getElementById("excel"),
+      "Please select a file."
+    );
+    return false;
+  } else if (!/\.(csv|xls|xlsx)$/i.test(excelFile)) {
+    showValidationMessage(
+      document.getElementById("excel"),
+      "Please choose a valid Excel CSV, XLS, or XLSX file."
+    );
+    return false;
+  } else {
+    hideValidationMessage(document.getElementById("excel"));
+  }
+
+  // chk directory path not blank
+  if (dirPath.trim() === "") {
+    showValidationMessage(
+      document.getElementById("dirPath"),
+      "Please choose a directory path."
+    );
+    return false;
+  } else {
+    hideValidationMessage(document.getElementById("dirPath"));
+  }
+  dirPathInput.addEventListener("focus", () =>
+    hideValidationMessage(dirPathInput)
+  );
+
+  return true;
+}
+
+// show the success message
+function showMessage(message, isSuccess) {
+  const messageBox = document.getElementById("messageBox");
+  const messageText = document.getElementById("messageText");
+
+  messageText.textContent = message;
+
+  if (isSuccess) {
+    messageBox.classList.remove("error");
+    messageBox.classList.add("success");
+  } else {
+    messageBox.classList.remove("success");
+    messageBox.classList.add("error");
+  }
+
+  // Display the message box
+  messageBox.style.display = "block";
+
+  // Hide the message box after a few seconds
+  setTimeout(function () {
+    messageBox.style.display = "none";
+  }, 7000);
+}
+
+
+
+// Create a rate limiter with a limit of 5 emails per second
+const limiter = new Bottleneck({ maxConcurrent: 5, minTime: 200 });
+let mailCount = 0;
+
+// Function to send files as email attachments
+async function sendFiles(event) {
+  // Validate the form first
+  if (!formValidation()) {
+    // If not valid, stop the execution
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: mail_ID,
+      pass: password,
+    },
+    // Retry configuration
+    retry: {
+      retries: 5, // Number of retries
+      factor: 2, // Exponential backoff factor
+      minTimeout: 1000, // Minimum time between retries in milliseconds
+    }
+  });
+
+  const formElement = document.getElementById("formbox1");
+  const loadingElement = document.getElementById("loading");
+  const mailCountBox = document.getElementById('mailCount');
+  let mailCountNo = document.getElementById('mailCountNo');
+  loadingElement.style.display = "block";
+  mailCountBox.style.display = "block";
+  formElement.classList.add("blur");
+
+  const workbook = XLSX.readFile(path1);
+  const sheet_name_list = workbook.SheetNames;
+  const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheet_name_list[0]]);
+
+  // Filter data to keep only objects with the "E mail" property
+  const filteredData = data.filter(obj => obj.hasOwnProperty("E mail"));
+
+  // If there are no valid objects, show an error message and stop further execution
+  if (filteredData.length === 0) {
+    showMessage("Invalid Excel format. No valid data with 'E mail' property found.", false);
+    loadingElement.style.display = "none";
+    mailCountBox.style.display = "none";
+    formElement.classList.remove("blur");
+    return;
+  }
+
+  // dynamic the no of files go though
+  let maxCodeFileNo = 0;
+  filteredData.forEach(obj => {
+    Object.keys(obj).forEach(key => {
+      if (key.startsWith("CODE")) {
+        // Extract number after "CODE"
+        const codeFileNo = parseInt(key.substring(4));
+        if (codeFileNo > maxCodeFileNo) {
+          maxCodeFileNo = codeFileNo;
+        }
+      }
+    })
+  })
+
+  try {
+    await Promise.all(
+      filteredData.map(async (item) => {
+        // Create a new instance of AdmZip for each recipient
+        const zip = new AdmZip();
+        let filePath = dirPath; // Set the correct filePath for each email
+
+        for (let i = 1; i <= maxCodeFileNo; i++) {
+          if (!item[`CODE${i}`]) {
+            continue;
+          } else {
+            zip.addLocalFile(filePath + item[`CODE${i}`] + ".pdf");
+          }
+
+        }
+
+        // Get the current date in the format "dd_mm_yyyy"
+        // const currentDate = new Date();
+        // const day = String(currentDate.getDate()).padStart(2, "0");
+        // const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+        // const year = currentDate.getFullYear();
+        const downloadName = item['TRADER NAME'] + ".zip";
+
+        // Create the zipped file
+        zip.writeZip(filePath + downloadName);
+
+        // Now the zip file is fully created, proceed with email sending
+        const mailOptions = {
+          from: mail_ID,
+          to: item["E mail"],
+          subject: "File Attachment",
+          text: `Hi ${item['TRADER NAME']}, please check the attachments`,
+          attachments: [
+            {
+              filename: downloadName,
+              path: filePath + downloadName,
+            },
+          ],
+        };
+
+        // Use the rate limiter to control the email sending rate
+        try {
+          await limiter.schedule(() => {
+            return new Promise((resolve, reject) => {
+              transporter.sendMail(mailOptions, function (error, info) {
+                if (error) {
+                  console.log(error);
+
+                  const errorMessage = error.response
+                    ? error.message.replace(/^Error:\s(.+?)\s\[.+/, "$1")
+                    : "Error sending email. Please try again later.";
+
+
+                  mailCount = 0;
+                  mailCountBox.style.display = "none";
+                  // Show the error message
+                  showMessage(errorMessage, false);
+
+                  reject(error);
+                } else {
+                  console.log("Email sent: " + info.response);
+                  mailCount++;
+                  mailCountNo.textContent = mailCount;
+
+                  // Delete the zip file after email is sent successfully
+                  // if (fs.existsSync(filePath + downloadName)) {
+                  //   fs.unlink(filePath + downloadName, (err) => {
+                  //     if (err) {
+                  //       console.error("Error deleting zip file:", err);
+                  //     } else {
+                  //       console.log("Zip file deleted successfully.");
+                  //     }
+                  //   });
+                  // }
+
+                  // Resolve the promise on success
+                  resolve(info);
+                }
+              });
+            });
+          });
+        } catch (error) {
+          console.error("Email sending failed!", error);
+          throw error; // Throw the error again to handle it outside this catch block
+        } finally {
+          filePath = dirPath; // Reset filePath for the next email iteration
+        }
+      })
+    );
+    mailCountBox.style.display = "none";
+    // Show the success message after all emails are sent successfully
+    showMessage(`All Emails Sent Successfully : [\u0020${mailCount}\u0020]`, true);
+    mailCount = 0;
+  } catch (error) {
+    // Show the error message if any email encounters an error
+    showMessage(error, false);
+  } finally {
+    // Hide the loading box and reset the form
+    loadingElement.style.display = "none";
+    formElement.classList.remove("blur");
+    mailCountNo.textContent = 0;
+    document.getElementById("formbox1").reset();
+  }
+}
+</file>
+
+<file path="particle-animation.js">
+// Get the canvas element
+const canvas = document.getElementById('particle-canvas');
+const ctx = canvas.getContext('2d');
+
+// Set canvas dimensions
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// Array to hold particles
+const particles = [];
+
+// Function to generate a particle
+function createParticle() {
+  const particle = {
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    size: Math.random() * 1.6, // Random size between 1 and 4
+    speedX: Math.random() * 3 - 1.5, // Random horizontal speed
+    speedY: Math.random() * 3 - 1.5, // Random vertical speed
+  };
+  particles.push(particle);
+}
+
+// Function to draw particles on canvas
+function drawParticles() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#5ed628'; // Particle color
+
+  particles.forEach(particle => {
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+// Function to update particle positions
+function updateParticles() {
+  particles.forEach(particle => {
+    particle.x += particle.speedX;
+    particle.y += particle.speedY;
+
+    // Wrap particles around the screen edges
+    if (particle.x > canvas.width) {
+      particle.x = 0;
+    }
+    if (particle.x < 0) {
+      particle.x = canvas.width;
+    }
+    if (particle.y > canvas.height) {
+      particle.y = 0;
+    }
+    if (particle.y < 0) {
+      particle.y = canvas.height;
+    }
+  });
+}
+
+// Function to animate particles
+function animateParticles() {
+  requestAnimationFrame(animateParticles);
+  updateParticles();
+  drawParticles();
+}
+
+// Generate initial particles
+for (let i = 0; i < 100; i++) {
+  createParticle();
+}
+
+// Start the animation
+animateParticles();
+</file>
+
+<file path="photon.min.css">
+@charset "UTF-8";/*!
+ * =====================================================
+ * Photon v0.1.2
+ * Copyright 2015 Connor Sears
+ * Licensed under MIT (https://github.com/connors/proton/blob/master/LICENSE)
+ *
+ * v0.1.2 designed by @connors.
+ * =====================================================
+ */audio,canvas,progress,sub,sup,video{vertical-align:baseline}body,html{height:100%}hr,html,label{overflow:hidden}.clearfix:after,.toolbar-actions:after,.toolbar:after{clear:both}*,img{-webkit-user-drag:text}.list-group *,.nav-group-item,h1,h2,h3,h4,h5,h6,label,td,th{white-space:nowrap;text-overflow:ellipsis}audio:not([controls]){display:none}a:active,a:hover{outline:0}abbr[title]{border-bottom:1px dotted}b,strong{font-weight:700}dfn{font-style:italic}h1{margin:.67em 0;font-size:36px}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative}sup{top:-.5em}.pane-group,.window{top:0;left:0;right:0}sub{bottom:-.25em}pre{overflow:auto}code,kbd,pre,samp{font-family:monospace,monospace;font-size:1em}button,input,optgroup,select,textarea{color:inherit;font:inherit;margin:0}input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{height:auto}input[type=search]::-webkit-search-cancel-button,input[type=search]::-webkit-search-decoration{-webkit-appearance:none}fieldset{border:1px solid silver;margin:0 2px;padding:.35em .625em .75em}legend{border:0;padding:0}*{cursor:default;-webkit-user-select:none;-webkit-box-sizing:border-box;box-sizing:border-box}html{width:100%}body{padding:0;margin:0;font-family:system,-apple-system,".SFNSDisplay-Regular","Helvetica Neue",Helvetica,"Segoe UI",sans-serif;font-size:13px;line-height:1.6;color:#333;background-color:transparent}.btn-dropdown:after,.icon:before{font-family:photon-entypo}hr{margin:15px 0;background:0 0;border:0;border-bottom:1px solid #ddd}h1,h2,h3,h4,h5,h6{margin-top:20px;margin-bottom:10px;font-weight:500;overflow:hidden}.btn .icon,.toolbar-header .title{margin-top:1px}h2{font-size:30px}h3{font-size:24px}h4{font-size:18px}h5{font-size:14px}.btn,h6{font-size:12px}.window{position:absolute;bottom:0;display:flex;flex-direction:column;background-color:#fff}.window-content{position:relative;overflow-y:auto;display:flex;flex:1}.selectable-text{cursor:text;-webkit-user-select:text}.btn,.title{cursor:default}.text-center{text-align:center}.text-right{text-align:right}.text-left{text-align:left}.btn,.title{text-align:center}.pull-left{float:left}.pull-right{float:right}.padded{padding:10px}.padded-less{padding:5px}.padded-more{padding:20px}.padded-vertically{padding-top:10px;padding-bottom:10px}.padded-vertically-less{padding-top:5px;padding-bottom:5px}.padded-vertically-more{padding-top:20px;padding-bottom:20px}.padded-horizontally{padding-right:10px;padding-left:10px}.padded-horizontally-less{padding-right:5px;padding-left:5px}.padded-horizontally-more{padding-right:20px;padding-left:20px}.padded-top{padding-top:10px}.padded-top-less{padding-top:5px}.padded-top-more{padding-top:20px}.padded-bottom{padding-bottom:10px}.padded-bottom-less{padding-bottom:5px}.padded-bottom-more{padding-bottom:20px}.sidebar{background-color:#f5f5f4}.draggable{-webkit-app-region:drag}.btn,.btn-group{vertical-align:middle;-webkit-app-region:no-drag}.clearfix:after,.clearfix:before{display:table;content:" "}.btn{display:inline-block;padding:3px 8px;margin-bottom:0;line-height:1.4;white-space:nowrap;background-image:none;border:1px solid transparent;border-radius:4px;box-shadow:0 1px 1px rgba(0,0,0,.06)}.btn:focus{outline:0;box-shadow:none}.btn-mini{padding:2px 6px}.btn-large{padding:6px 12px}.btn-form{padding-right:20px;padding-left:20px}.btn-default{color:#333;background-color:#fcfcfc;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#fcfcfc),color-stop(100%,#f1f1f1));background-image:-webkit-linear-gradient(top,#fcfcfc 0,#f1f1f1 100%);background-image:linear-gradient(to bottom,#fcfcfc 0,#f1f1f1 100%);border-color:#c2c0c2 #c2c0c2 #a19fa1}.btn-default:active{background-color:#ddd;background-image:none}.btn-negative,.btn-positive,.btn-primary,.btn-warning{color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.1)}.btn-primary{border-color:#388df8 #388df8 #0866dc;background-color:#6eb4f7;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#6eb4f7),color-stop(100%,#1a82fb));background-image:-webkit-linear-gradient(top,#6eb4f7 0,#1a82fb 100%);background-image:linear-gradient(to bottom,#6eb4f7 0,#1a82fb 100%)}.btn-primary:active{background-color:#3e9bf4;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#3e9bf4),color-stop(100%,#0469de));background-image:-webkit-linear-gradient(top,#3e9bf4 0,#0469de 100%);background-image:linear-gradient(to bottom,#3e9bf4 0,#0469de 100%)}.btn-positive{border-color:#29a03b #29a03b #248b34;background-color:#5bd46d;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#5bd46d),color-stop(100%,#29a03b));background-image:-webkit-linear-gradient(top,#5bd46d 0,#29a03b 100%);background-image:linear-gradient(to bottom,#5bd46d 0,#29a03b 100%)}.btn-positive:active{background-color:#34c84a;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#34c84a),color-stop(100%,#248b34));background-image:-webkit-linear-gradient(top,#34c84a 0,#248b34 100%);background-image:linear-gradient(to bottom,#34c84a 0,#248b34 100%)}.btn-negative{border-color:#fb2f29 #fb2f29 #fb1710;background-color:#fd918d;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#fd918d),color-stop(100%,#fb2f29));background-image:-webkit-linear-gradient(top,#fd918d 0,#fb2f29 100%);background-image:linear-gradient(to bottom,#fd918d 0,#fb2f29 100%)}.btn-negative:active{background-color:#fc605b;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#fc605b),color-stop(100%,#fb1710));background-image:-webkit-linear-gradient(top,#fc605b 0,#fb1710 100%);background-image:linear-gradient(to bottom,#fc605b 0,#fb1710 100%)}.btn-warning{border-color:#fcaa0e #fcaa0e #ee9d02;background-color:#fece72;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#fece72),color-stop(100%,#fcaa0e));background-image:-webkit-linear-gradient(top,#fece72 0,#fcaa0e 100%);background-image:linear-gradient(to bottom,#fece72 0,#fcaa0e 100%)}.btn-warning:active{background-color:#fdbc40;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#fdbc40),color-stop(100%,#ee9d02));background-image:-webkit-linear-gradient(top,#fdbc40 0,#ee9d02 100%);background-image:linear-gradient(to bottom,#fdbc40 0,#ee9d02 100%)}.btn .icon{float:left;width:14px;height:14px;margin-bottom:1px;color:#737475;font-size:14px;line-height:1}.btn .icon-text{margin-right:5px}.btn-dropdown:after{margin-left:5px;content:""}.btn-group{position:relative;display:inline-block}.toolbar-actions:after,.toolbar-actions:before,.toolbar:after,.toolbar:before{display:table;content:" "}.btn-group .btn{position:relative;float:left}.btn-group .btn:active,.btn-group .btn:focus{z-index:2}.btn-group .btn.active{z-index:3}.btn-group .btn+.btn,.btn-group .btn+.btn-group,.btn-group .btn-group+.btn,.btn-group .btn-group+.btn-group{margin-left:-1px}.btn-group>.btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}.btn-group>.btn:last-child{border-top-left-radius:0;border-bottom-left-radius:0}.btn-group>.btn:not(:first-child):not(:last-child){border-radius:0}.btn-group .btn+.btn{border-left:1px solid #c2c0c2}.btn-group .btn+.btn.active{border-left:0}.btn-group .active{color:#fff;border:1px solid transparent;background-color:#6d6c6d;background-image:none}.btn-group .active .icon{color:#fff}.toolbar{min-height:22px;box-shadow:inset 0 1px 0 #f5f4f5;background-color:#e8e6e8;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#e8e6e8),color-stop(100%,#d1cfd1));background-image:-webkit-linear-gradient(top,#e8e6e8 0,#d1cfd1 100%);background-image:linear-gradient(to bottom,#e8e6e8 0,#d1cfd1 100%)}.toolbar-header{border-bottom:1px solid #c2c0c2}.toolbar-footer{border-top:1px solid #c2c0c2;-webkit-app-region:drag}.title{margin:0;font-size:12px;font-weight:400;color:#555}.toolbar-borderless{border-top:0;border-bottom:0}.toolbar-actions{margin-top:4px;margin-bottom:3px;padding-right:3px;padding-left:3px;padding-bottom:3px;-webkit-app-region:drag}.form-control,label{display:inline-block;font-size:13px}.toolbar-actions>.btn,.toolbar-actions>.btn-group{margin-left:4px;margin-right:4px}label{margin-bottom:5px}input[type=search]{-webkit-appearance:textfield;box-sizing:border-box}input[type=checkbox],input[type=radio]{margin:4px 0 0;line-height:normal}.checkbox,.form-group,.radio{margin-bottom:10px}.form-control{width:100%;min-height:25px;padding:5px 10px;line-height:1.6;background-color:#fff;border:1px solid #ddd;border-radius:4px;outline:0}.form-control:focus{border-color:#6db3fd;box-shadow:3px 3px 0 #6db3fd,-3px -3px 0 #6db3fd,-3px 3px 0 #6db3fd,3px -3px 0 #6db3fd}textarea{height:auto}.checkbox,.radio{position:relative;display:block;margin-top:10px}.checkbox label,.radio label{padding-left:20px;margin-bottom:0;font-weight:400}.checkbox input[type=checkbox],.checkbox-inline input[type=checkbox],.radio input[type=radio],.radio-inline input[type=radio]{position:absolute;margin-left:-20px;margin-top:4px}.form-actions .btn{margin-right:10px}.form-actions .btn:last-child{margin-right:0}.pane-group{position:absolute;bottom:0;display:flex}.icon:before,.pane,.tab-item{position:relative}.pane{overflow-y:auto;flex:1;border-left:1px solid #ddd}.list-group *,.media-body,.nav-group-item,td,th{overflow:hidden}.pane:first-child{border-left:0}.pane-sm{max-width:220px;min-width:150px}.pane-mini{width:80px;flex:none}.pane-one-fourth{width:25%;flex:none}.pane-one-third{width:33.3%}.img-circle{border-radius:50%}.img-rounded{border-radius:4px}.list-group{width:100%;list-style:none;margin:0;padding:0}.list-group *{margin:0}.list-group-item{padding:10px;font-size:12px;color:#414142;border-top:1px solid #ddd}.list-group-item:first-child{border-top:0}.list-group-item.active,.list-group-item.selected{color:#fff;background-color:#116cd6}.list-group-header{padding:10px}.media-object{margin-top:3px}.media-object.pull-left{margin-right:10px}.media-object.pull-right{margin-left:10px}.nav-group{font-size:14px}.nav-group-item{padding:2px 10px 2px 25px;display:block;color:#333;text-decoration:none}.nav-group-item.active,.nav-group-item:active{background-color:#dcdfe1}.nav-group-item .icon{width:19px;height:18px;float:left;color:#737475;margin-top:-3px;margin-right:7px;font-size:18px;text-align:center}.nav-group-title{margin:0;padding:10px 10px 2px;font-size:12px;font-weight:500;color:#666}.icon:before,th{font-weight:400}@font-face{font-family:photon-entypo;src:url(../fonts/photon-entypo.eot);src:url(../fonts/photon-entypo.eot?#iefix) format("eot"),url(../fonts/photon-entypo.woff) format("woff"),url(../fonts/photon-entypo.ttf) format("truetype");font-weight:400;font-style:normal}.icon:before{display:inline-block;speak:none;font-size:100%;font-style:normal;font-variant:normal;text-transform:none;line-height:1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.icon-note:before{content:'\e800'}.icon-note-beamed:before{content:'\e801'}.icon-music:before{content:'\e802'}.icon-search:before{content:'\e803'}.icon-flashlight:before{content:'\e804'}.icon-mail:before{content:'\e805'}.icon-heart:before{content:'\e806'}.icon-heart-empty:before{content:'\e807'}.icon-star:before{content:'\e808'}.icon-star-empty:before{content:'\e809'}.icon-user:before{content:'\e80a'}.icon-users:before{content:'\e80b'}.icon-user-add:before{content:'\e80c'}.icon-video:before{content:'\e80d'}.icon-picture:before{content:'\e80e'}.icon-camera:before{content:'\e80f'}.icon-layout:before{content:'\e810'}.icon-menu:before{content:'\e811'}.icon-check:before{content:'\e812'}.icon-cancel:before{content:'\e813'}.icon-cancel-circled:before{content:'\e814'}.icon-cancel-squared:before{content:'\e815'}.icon-plus:before{content:'\e816'}.icon-plus-circled:before{content:'\e817'}.icon-plus-squared:before{content:'\e818'}.icon-minus:before{content:'\e819'}.icon-minus-circled:before{content:'\e81a'}.icon-minus-squared:before{content:'\e81b'}.icon-help:before{content:'\e81c'}.icon-help-circled:before{content:'\e81d'}.icon-info:before{content:'\e81e'}.icon-info-circled:before{content:'\e81f'}.icon-back:before{content:'\e820'}.icon-home:before{content:'\e821'}.icon-link:before{content:'\e822'}.icon-attach:before{content:'\e823'}.icon-lock:before{content:'\e824'}.icon-lock-open:before{content:'\e825'}.icon-eye:before{content:'\e826'}.icon-tag:before{content:'\e827'}.icon-bookmark:before{content:'\e828'}.icon-bookmarks:before{content:'\e829'}.icon-flag:before{content:'\e82a'}.icon-thumbs-up:before{content:'\e82b'}.icon-thumbs-down:before{content:'\e82c'}.icon-download:before{content:'\e82d'}.icon-upload:before{content:'\e82e'}.icon-upload-cloud:before{content:'\e82f'}.icon-reply:before{content:'\e830'}.icon-reply-all:before{content:'\e831'}.icon-forward:before{content:'\e832'}.icon-quote:before{content:'\e833'}.icon-code:before{content:'\e834'}.icon-export:before{content:'\e835'}.icon-pencil:before{content:'\e836'}.icon-feather:before{content:'\e837'}.icon-print:before{content:'\e838'}.icon-retweet:before{content:'\e839'}.icon-keyboard:before{content:'\e83a'}.icon-comment:before{content:'\e83b'}.icon-chat:before{content:'\e83c'}.icon-bell:before{content:'\e83d'}.icon-attention:before{content:'\e83e'}.icon-alert:before{content:'\e83f'}.icon-vcard:before{content:'\e840'}.icon-address:before{content:'\e841'}.icon-location:before{content:'\e842'}.icon-map:before{content:'\e843'}.icon-direction:before{content:'\e844'}.icon-compass:before{content:'\e845'}.icon-cup:before{content:'\e846'}.icon-trash:before{content:'\e847'}.icon-doc:before{content:'\e848'}.icon-docs:before{content:'\e849'}.icon-doc-landscape:before{content:'\e84a'}.icon-doc-text:before{content:'\e84b'}.icon-doc-text-inv:before{content:'\e84c'}.icon-newspaper:before{content:'\e84d'}.icon-book-open:before{content:'\e84e'}.icon-book:before{content:'\e84f'}.icon-folder:before{content:'\e850'}.icon-archive:before{content:'\e851'}.icon-box:before{content:'\e852'}.icon-rss:before{content:'\e853'}.icon-phone:before{content:'\e854'}.icon-cog:before{content:'\e855'}.icon-tools:before{content:'\e856'}.icon-share:before{content:'\e857'}.icon-shareable:before{content:'\e858'}.icon-basket:before{content:'\e859'}.icon-bag:before{content:'\e85a'}.icon-calendar:before{content:'\e85b'}.icon-login:before{content:'\e85c'}.icon-logout:before{content:'\e85d'}.icon-mic:before{content:'\e85e'}.icon-mute:before{content:'\e85f'}.icon-sound:before{content:'\e860'}.icon-volume:before{content:'\e861'}.icon-clock:before{content:'\e862'}.icon-hourglass:before{content:'\e863'}.icon-lamp:before{content:'\e864'}.icon-light-down:before{content:'\e865'}.icon-light-up:before{content:'\e866'}.icon-adjust:before{content:'\e867'}.icon-block:before{content:'\e868'}.icon-resize-full:before{content:'\e869'}.icon-resize-small:before{content:'\e86a'}.icon-popup:before{content:'\e86b'}.icon-publish:before{content:'\e86c'}.icon-window:before{content:'\e86d'}.icon-arrow-combo:before{content:'\e86e'}.icon-down-circled:before{content:'\e86f'}.icon-left-circled:before{content:'\e870'}.icon-right-circled:before{content:'\e871'}.icon-up-circled:before{content:'\e872'}.icon-down-open:before{content:'\e873'}.icon-left-open:before{content:'\e874'}.icon-right-open:before{content:'\e875'}.icon-up-open:before{content:'\e876'}.icon-down-open-mini:before{content:'\e877'}.icon-left-open-mini:before{content:'\e878'}.icon-right-open-mini:before{content:'\e879'}.icon-up-open-mini:before{content:'\e87a'}.icon-down-open-big:before{content:'\e87b'}.icon-left-open-big:before{content:'\e87c'}.icon-right-open-big:before{content:'\e87d'}.icon-up-open-big:before{content:'\e87e'}.icon-down:before{content:'\e87f'}.icon-left:before{content:'\e880'}.icon-right:before{content:'\e881'}.icon-up:before{content:'\e882'}.icon-down-dir:before{content:'\e883'}.icon-left-dir:before{content:'\e884'}.icon-right-dir:before{content:'\e885'}.icon-up-dir:before{content:'\e886'}.icon-down-bold:before{content:'\e887'}.icon-left-bold:before{content:'\e888'}.icon-right-bold:before{content:'\e889'}.icon-up-bold:before{content:'\e88a'}.icon-down-thin:before{content:'\e88b'}.icon-left-thin:before{content:'\e88c'}.icon-right-thin:before{content:'\e88d'}.icon-up-thin:before{content:'\e88e'}.icon-ccw:before{content:'\e88f'}.icon-cw:before{content:'\e890'}.icon-arrows-ccw:before{content:'\e891'}.icon-level-down:before{content:'\e892'}.icon-level-up:before{content:'\e893'}.icon-shuffle:before{content:'\e894'}.icon-loop:before{content:'\e895'}.icon-switch:before{content:'\e896'}.icon-play:before{content:'\e897'}.icon-stop:before{content:'\e898'}.icon-pause:before{content:'\e899'}.icon-record:before{content:'\e89a'}.icon-to-end:before{content:'\e89b'}.icon-to-start:before{content:'\e89c'}.icon-fast-forward:before{content:'\e89d'}.icon-fast-backward:before{content:'\e89e'}.icon-progress-0:before{content:'\e89f'}.icon-progress-1:before{content:'\e8a0'}.icon-progress-2:before{content:'\e8a1'}.icon-progress-3:before{content:'\e8a2'}.icon-target:before{content:'\e8a3'}.icon-palette:before{content:'\e8a4'}.icon-list:before{content:'\e8a5'}.icon-list-add:before{content:'\e8a6'}.icon-signal:before{content:'\e8a7'}.icon-trophy:before{content:'\e8a8'}.icon-battery:before{content:'\e8a9'}.icon-back-in-time:before{content:'\e8aa'}.icon-monitor:before{content:'\e8ab'}.icon-mobile:before{content:'\e8ac'}.icon-network:before{content:'\e8ad'}.icon-cd:before{content:'\e8ae'}.icon-inbox:before{content:'\e8af'}.icon-install:before{content:'\e8b0'}.icon-globe:before{content:'\e8b1'}.icon-cloud:before{content:'\e8b2'}.icon-cloud-thunder:before{content:'\e8b3'}.icon-flash:before{content:'\e8b4'}.icon-moon:before{content:'\e8b5'}.icon-flight:before{content:'\e8b6'}.icon-paper-plane:before{content:'\e8b7'}.icon-leaf:before{content:'\e8b8'}.icon-lifebuoy:before{content:'\e8b9'}.icon-mouse:before{content:'\e8ba'}.icon-briefcase:before{content:'\e8bb'}.icon-suitcase:before{content:'\e8bc'}.icon-dot:before{content:'\e8bd'}.icon-dot-2:before{content:'\e8be'}.icon-dot-3:before{content:'\e8bf'}.icon-brush:before{content:'\e8c0'}.icon-magnet:before{content:'\e8c1'}.icon-infinity:before{content:'\e8c2'}.icon-erase:before{content:'\e8c3'}.icon-chart-pie:before{content:'\e8c4'}.icon-chart-line:before{content:'\e8c5'}.icon-chart-bar:before{content:'\e8c6'}.icon-chart-area:before{content:'\e8c7'}.icon-tape:before{content:'\e8c8'}.icon-graduation-cap:before{content:'\e8c9'}.icon-language:before{content:'\e8ca'}.icon-ticket:before{content:'\e8cb'}.icon-water:before{content:'\e8cc'}.icon-droplet:before{content:'\e8cd'}.icon-air:before{content:'\e8ce'}.icon-credit-card:before{content:'\e8cf'}.icon-floppy:before{content:'\e8d0'}.icon-clipboard:before{content:'\e8d1'}.icon-megaphone:before{content:'\e8d2'}.icon-database:before{content:'\e8d3'}.icon-drive:before{content:'\e8d4'}.icon-bucket:before{content:'\e8d5'}.icon-thermometer:before{content:'\e8d6'}.icon-key:before{content:'\e8d7'}.icon-flow-cascade:before{content:'\e8d8'}.icon-flow-branch:before{content:'\e8d9'}.icon-flow-tree:before{content:'\e8da'}.icon-flow-line:before{content:'\e8db'}.icon-flow-parallel:before{content:'\e8dc'}.icon-rocket:before{content:'\e8dd'}.icon-gauge:before{content:'\e8de'}.icon-traffic-cone:before{content:'\e8df'}.icon-cc:before{content:'\e8e0'}.icon-cc-by:before{content:'\e8e1'}.icon-cc-nc:before{content:'\e8e2'}.icon-cc-nc-eu:before{content:'\e8e3'}.icon-cc-nc-jp:before{content:'\e8e4'}.icon-cc-sa:before{content:'\e8e5'}.icon-cc-nd:before{content:'\e8e6'}.icon-cc-pd:before{content:'\e8e7'}.icon-cc-zero:before{content:'\e8e8'}.icon-cc-share:before{content:'\e8e9'}.icon-cc-remix:before{content:'\e8ea'}.icon-github:before{content:'\e8eb'}.icon-github-circled:before{content:'\e8ec'}.icon-flickr:before{content:'\e8ed'}.icon-flickr-circled:before{content:'\e8ee'}.icon-vimeo:before{content:'\e8ef'}.icon-vimeo-circled:before{content:'\e8f0'}.icon-twitter:before{content:'\e8f1'}.icon-twitter-circled:before{content:'\e8f2'}.icon-facebook:before{content:'\e8f3'}.icon-facebook-circled:before{content:'\e8f4'}.icon-facebook-squared:before{content:'\e8f5'}.icon-gplus:before{content:'\e8f6'}.icon-gplus-circled:before{content:'\e8f7'}.icon-pinterest:before{content:'\e8f8'}.icon-pinterest-circled:before{content:'\e8f9'}.icon-tumblr:before{content:'\e8fa'}.icon-tumblr-circled:before{content:'\e8fb'}.icon-linkedin:before{content:'\e8fc'}.icon-linkedin-circled:before{content:'\e8fd'}.icon-dribbble:before{content:'\e8fe'}.icon-dribbble-circled:before{content:'\e8ff'}.icon-stumbleupon:before{content:'\e900'}.icon-stumbleupon-circled:before{content:'\e901'}.icon-lastfm:before{content:'\e902'}.icon-lastfm-circled:before{content:'\e903'}.icon-rdio:before{content:'\e904'}.icon-rdio-circled:before{content:'\e905'}.icon-spotify:before{content:'\e906'}.icon-spotify-circled:before{content:'\e907'}.icon-qq:before{content:'\e908'}.icon-instagram:before{content:'\e909'}.icon-dropbox:before{content:'\e90a'}.icon-evernote:before{content:'\e90b'}.icon-flattr:before{content:'\e90c'}.icon-skype:before{content:'\e90d'}.icon-skype-circled:before{content:'\e90e'}.icon-renren:before{content:'\e90f'}.icon-sina-weibo:before{content:'\e910'}.icon-paypal:before{content:'\e911'}.icon-picasa:before{content:'\e912'}.icon-soundcloud:before{content:'\e913'}.icon-mixi:before{content:'\e914'}.icon-behance:before{content:'\e915'}.icon-google-circles:before{content:'\e916'}.icon-vkontakte:before{content:'\e917'}.icon-smashing:before{content:'\e918'}.icon-sweden:before{content:'\e919'}.icon-db-shape:before{content:'\e91a'}.icon-logo-db:before{content:'\e91b'}table{border-spacing:0;width:100%;border:0;border-collapse:separate;font-size:12px;text-align:left}.table-striped tr:nth-child(even),thead{background-color:#f5f5f4}tbody{background-color:#fff}.table-striped tr:active:nth-child(even),tr:active{color:#fff;background-color:#116cd6}thead tr:active{color:#333;background-color:#f5f5f4}th{border-right:1px solid #ddd;border-bottom:1px solid #ddd}td,th{padding:2px 15px}td:last-child,th:last-child{border-right:0}.tab-group{margin-top:-1px;display:flex;border-top:1px solid #989698;border-bottom:1px solid #989698}.tab-item{flex:1;padding:3px;font-size:12px;text-align:center;border-left:1px solid #989698;background-color:#b8b6b8;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#b8b6b8),color-stop(100%,#b0aeb0));background-image:-webkit-linear-gradient(top,#b8b6b8 0,#b0aeb0 100%);background-image:linear-gradient(to bottom,#b8b6b8 0,#b0aeb0 100%)}.tab-item:first-child{border-left:0}.tab-item.active{background-color:#d4d2d4;background-image:-webkit-gradient(linear,left top,left bottom,color-stop(0,#d4d2d4),color-stop(100%,#cccacc));background-image:-webkit-linear-gradient(top,#d4d2d4 0,#cccacc 100%);background-image:linear-gradient(to bottom,#d4d2d4 0,#cccacc 100%)}.tab-item .icon-close-tab:hover,.tab-item:after{background-color:rgba(0,0,0,.08)}.tab-item .icon-close-tab{position:absolute;top:50%;left:5px;width:15px;height:15px;font-size:15px;line-height:15px;text-align:center;color:#666;opacity:0;transition:opacity .1s linear,background-color .1s linear;border-radius:3px;transform:translateY(-50%);z-index:10}.tab-item:after{position:absolute;top:0;right:0;bottom:0;left:0;content:"";opacity:0;transition:opacity .1s linear;z-index:1}.tab-item:hover .icon-close-tab,.tab-item:hover:not(.active):after{opacity:1}.tab-item-fixed{flex:none;padding:3px 10px}
+</file>
+
+<file path="style.css">
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@100;300;500&display=swap');
+
+* {
+    margin: 0px;
+    padding: 0px;
+    font-family: 'Roboto Mono', monospace !important;
+}
+
+h1 {
+    color: red;
+}
+
+.mainWrapper {
+    margin: 25px;
+    color: blue;
+    border: 2px solid red;  
+
+}
+
+#fileContents {
+    overflow: scroll;
+    height: 500px;
+    border: 5px solid red;
+    color: blue;
+    padding-left: 20px;
+}
+
+#fileContents2 {
+    height: 400px;
+    border: 5px solid red;
+    font-size: large;
+    font-weight: 500;
+    word-wrap: break-word;
+
+}
+
+#fileName {
+    border: 5px solid red;
+}
+
+.formBox {
+    box-shadow: 0 0 40px 10px #48abe0;
+}
+
+.btnColor {
+    border: 2px solid #43b1ec !important;
+    color: #fbfbfb !important;
+}
+
+.inputColor {
+    background-color: rgb(21, 24, 23) !important;
+    border: 2px solid #48abe0 !important;
+    margin-right: 10px !important;
+    color: #fbfbfb !important;
+    /* font-weight: bold !important; */
+}
+
+.inputColor::placeholder {
+    color: #fbfbfb !important;
+    /* font-weight: bold !important; */
+    margin-left: 10px !important;
+
+}
+
+.inputColor::before {
+    content: "@example.com";
+    color: #fbfbfb !important;
+    /* font-weight: bold !important; */
+}
+
+.hidden {
+    display: none;
+}
+
+.mainWrapper {
+    margin: 25px;
+    color: blue;
+    position: relative;
+    /* Add this line */
+}
+
+#loadingBox {
+    width: 60px !important;
+    height: 60px !important;
+    border-radius: 50% !important;
+}
+
+#loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    /* background-color: rgba(255, 255, 255, 0.8); */
+    /* Set a transparent background color */
+}
+
+#successMessage {
+    position: absolute;
+    top: 10%;
+    left: 52%;
+    transform: translate(-50%, -50%);
+    background-color: #28a0d6;
+    padding: 10px 20px;
+    border-radius: 5px;
+    color: #2a3840;
+    z-index: 10;
+    box-shadow: 0 0 40px 10px #020f1f;
+}
+</file>
+
+<file path="uploadWindow.html">
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+  <link rel="stylesheet" href="photon.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous" />
+  <title>File Upload</title>
+</head>
+
+
+
+<body style="background-image: url('./image/image.jpg')">
+  <div id="successMessage" class="hidden">
+    <p>Email sent successfully!</p>
+  </div>
+  <div class="position-absolute top-50 start-50 translate-middle mainWrapper">
+    <form class="formBox" style="
+          width: fit-content;
+          margin: 20px;
+          padding: 20px;
+          align-self: center;
+          background-color: rgba(21, 24, 23, 0.5);
+        " id="formBox">
+      <div id="loadingBox">
+        <div id="loading" class="hidden">
+          <img src="./image/loading3d.gif" alt="Sending..." />
+        </div>
+      </div>
+
+      <div class="input-group mb-3 rounded-1">
+        <input type="text" id="email" name="email" class="form-control inputColor" placeholder="Email Id" /><br /><br />
+        <span class="input-group-text inputColor" id="basic-addon2"></span>
+      </div>
+      <div class="input-group mb-3 rounded-1">
+        <input type="password" id="password" name="password" class="form-control inputColor" placeholder="Password"
+          onmouseout="submitForm()" /><br /><br />
+      </div>
+      <div class="input-group mb-3 rounded-1">
+        <button id="btnRead" type="button" class="btn btnColor border-2 rounded-1" onclick="upload()">
+          <b>Upload</b>
+        </button>
+        <input id="excel" class="form-control inputColor" placeholder="Chosen Excel sheet" style="margin-left: 7px"
+          readonly />
+      </div>
+      <div class="input-group mb-3 rounded-1">
+        <button id="selectDirectory" type="button" class="btn btnColor border-2 rounded-1"
+          onclick="onDirectorySelected()">
+          <b> Directory</b>
+        </button>
+        <input id="dirPath" class="form-control inputColor" placeholder="Chosen Path" style="margin-left: 7px"
+          readonly />
+      </div>
+      <button id="sendFiles" type="button" class="btn btnColor border-2 rounded-1" style="margin-left: 170px">
+        <b>Send</b></button><br /><br />
+    </form>
+
+  </div>
+  <script src="index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
+    crossorigin="anonymous"></script>
+</body>
+
+</html>
+</file>
+
+<file path=".gitignore">
+/node_modules
+/release-builds
+/dist
+</file>
+
+<file path="README.md">
+```markdown
+# Mail Sender Electron Application
+
+Mail Sender is an Electron application that allows users to send multiple emails with multiple files attached simultaneously using Gmail.
+
+## Features
+
+- Send emails with attachments to multiple recipients.
+- Supports sending multiple files in each email.
+- Uses Gmail SMTP for email delivery.
+- Simple and intuitive user interface.
+- Cross-platform compatibility with Electron.
+
+## Getting Started
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Subu1987/Mail-Sender.git
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   cd Mail-Sender
+   npm install
+   ```
+
+3. **Run the application:**
+   ```bash
+   npm start
+   ```
+
+## Configuration
+
+Before using the application, make sure to configure your Gmail account settings:
+
+- Enable "Less Secure Apps" access in your Gmail settings.
+- If you have two-factor authentication enabled, you may need to generate an App Password for the application.
+
+## Contributing
+
+Contributions are welcome! If you'd like to contribute to this project, please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/new-feature).
+3. Make your changes.
+4. Commit your changes (`git commit -am 'Add new feature'`).
+5. Push to the branch (`git push origin feature/new-feature).
+6. Create a new Pull Request.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+```
+
+Feel free to adjust any details or add any additional sections as needed.
+</file>
+
+<file path="style2.css">
+* body {
+    margin: 0px;
+    padding: 0px;
+    background-image: url(image/image.jpg);
+    background-size: cover;
+    font-family: "Ubuntu", sans-serif;
+    /* backdrop-filter: blur(5px); */
+    transition: filter 0.3s ease-in-out;
+
+}
+
+#particle-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    /* Ensure canvas is behind other elements */
+}
+
+
+h1 {
+    font-size: 1.9rem;
+    text-align: center;
+    color: #f3f1f1;
+    font-family: "Ubuntu", sans-serif;
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: 1px;
+}
+
+#mainwrapper {
+    display: flex;
+    margin: auto;
+    height: 100vh;
+    width: 100vw;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    background-position: center;
+    background-blend-mode: darken;
+    box-sizing: border-box;
+}
+
+.formbox {
+    height: auto;
+    width: 450px;
+    padding: 10px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgb(10 0 0 / 75%);
+    box-shadow: 0 0 40px 10px #48abe0;
+    margin: auto;
+    border-radius: 50px;
+    color: #f3f1f1;
+    font-family: 'Orbitron', sans-serif !important;
+}
+
+.logoBox {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding-bottom: 30px;
+}
+
+.logo {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background-color: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 0 50px 0px #48abe0;
+    margin-right: 10px;
+
+}
+
+.logo img {
+    width: 70%;
+
+}
+
+.inputColor {
+    background-color: transparent;
+    color: #f3f1f1;
+    font-weight: 300;
+    font-size: 1rem;
+    padding: 1rem;
+    width: 100%;
+    margin: 0;
+    line-height: 1;
+    box-sizing: border-box;
+    outline: none;
+    border: none;
+    /* border-bottom: 1.8px solid #fff; */
+    overflow: hidden;
+    font-family: "Ubuntu", sans-serif;
+    letter-spacing: 2px;
+}
+
+
+.inputColor::placeholder {
+    color: #fdfdfd;
+    font-size: 0.8rem;
+}
+
+.contentone {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    width: 400px;
+    border-bottom: 1.8px solid #fff;
+
+}
+
+.contentone i {
+    display: flex;
+    justify-content: center;
+    color: #fdfdfd;
+    border: 0;
+    background: none;
+    outline: none;
+    width: 5%;
+    padding: 0 10px;
+    z-index: 2;
+}
+
+.btnsend {
+    margin: 25px 0px;
+    padding: 5px 15px;
+    background-color: transparent;
+    color: #fbfbfb;
+    font-size: 1.2rem;
+    border-radius: 10px;
+    border: 1px solid #fff;
+    font-family: "Ubuntu", sans-serif;
+    transition: color 0.3s ease-in-out, background-color 0.3s ease-in-out, border-color 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.btnsend:hover {
+    background-color: #5ed628;
+    color: black;
+    border: solid #5ed628;
+    transform: scale(1.1);
+    font-weight: bold;
+}
+
+#loadingBox{
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+}
+
+#loadingBox.active~#mainwrapper {
+    filter: blur(5px);
+}
+
+#loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    /* background-color: rgba(255, 255, 255, 0.8); */
+    /* Set a transparent background color */
+}
+
+#loading img {
+    width: 200px;
+}
+
+.hidden {
+    display: none;
+}
+
+#formbox1.blur {
+    filter: blur(2px);
+    pointer-events: none;
+}
+
+.ring-container {
+    position: relative;
+    display: none;
+}
+
+.ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border: 3px solid #5ed628;
+    /* Replace this with your desired ring color */
+    border-radius: 50%;
+    position: relative;
+    z-index: 12;
+}
+
+.number {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #5ed628;
+    z-index: 12;
+    /* Replace this with your desired number color */
+}
+
+#messageBox {
+    position: absolute;
+    top: 5%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 5px 30px;
+    background-color: #5ed628;
+    border-radius: 5px;
+    color: #2a3840;
+    z-index: 10;
+    box-shadow: 0 0 40px 10px #020f1f;
+    display: none;
+    font-size: 0.875rem;
+    font-weight: bold;
+    font-family: sans-serif;
+    text-align: center;
+}
+
+#messageBox.error {
+    background-color: #f44336;
+}
+
+.validation-message {
+    color: #ff6565;
+    font-size: 0.75rem;
+    margin-top: 5px;
+}
+
+#togglePassword {
+    cursor: pointer;
+    transition: color 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+#togglePassword:hover {
+    color: #5ed628;
+    transform: scale(1.4);
+}
+
+#excelBtn {
+    cursor: pointer;
+    transition: color 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+#excelBtn:hover {
+    color: #5ed628;
+    transform: scale(1.4);
+}
+
+#dirPathBtn {
+    cursor: pointer;
+    transition: color 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+#dirPathBtn:hover {
+    color: #5ed628;
+    transform: scale(1.4);
+}
+
+#mailIcon {
+    opacity: 0.5;
+}
+
+footer {
+    color: #f3f1f1;
+    padding: 4px;
+    text-align: center;
+    font-size: 0.875rem;
+    font-family: "Poppins", sans-serif;
+    font-weight: 300;
+    font-style: oblique;
+}
+</file>
+
+<file path="backupIndex.js">
+const Bottleneck = require("bottleneck");
+const { ipcRenderer } = require("electron");
+const XLSX = require("xlsx");
+const nodemailer = require("nodemailer");
+const fs = require("fs");
+const path = require("path");
+
+const formElement = document.getElementById("formbox1");
+const loadingElement = document.getElementById("loading");
+const mailCountBox = document.getElementById('mailCount');
+const mailCountNo = document.getElementById('mailCountNo');
+
+let mail_ID = "";
+let password = "";
+let subject = "";
+let mailBody = "";
+let closing = "";
+let dirPath = "";
+let path1 = "";
+let logFilePath = "";
+
+// chk password visibility
+const togglePassword = document.getElementById("togglePassword");
+const passwordInput = document.getElementById("Password");
+togglePassword.addEventListener("click", function () {
+  passwordInput.setAttribute("type", passwordInput.getAttribute("type") === "password" ? "text" : "password");
+  togglePassword.classList.toggle("fa-eye-slash");
+});
+
+// send files
+document.getElementById("sendFiles").addEventListener("click", sendFiles);
+
+// excel sheet upload
+function upload(event) {
+  ipcRenderer.send("open-file-dialog-for-file");
+  ipcRenderer.on("selected-file", function (event, path) {
+    path1 = path.toString();
+    document.getElementById("excel").value = path1.slice(path1.lastIndexOf("\\") + 1);
+    hideValidationMessage(document.getElementById("excel"));
+  });
+}
+
+// get the directory path
+function onDirectorySelected(event) {
+  ipcRenderer.send("open-directory-dialog");
+  ipcRenderer.on("selected-directory", (event, path) => {
+    dirPath = `${path}/`;
+    document.getElementById("dirPath").value = dirPath;
+    hideValidationMessage(document.getElementById("dirPath"));
+
+    // Get today's date in the format yyyy-mm-dd
+    const today = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\//g, '-');
+
+    // Set the log file path with today's date
+    logFilePath = `${dirPath}/email_logs_${today}.txt`;
+
+  });
+}
+
+// show validation message
+function showValidationMessage(inputElement, message) {
+  const existingValidationMessage = inputElement.parentNode.querySelector(".validation-message");
+  if (existingValidationMessage) {
+    existingValidationMessage.remove();
+  }
+  const validationMessage = document.createElement("div");
+  validationMessage.className = "validation-message";
+  validationMessage.textContent = message;
+  inputElement.parentNode.appendChild(validationMessage);
+}
+
+// hide validation message
+function hideValidationMessage(inputElement) {
+  const validationMessage = inputElement.parentNode.querySelector(".validation-message");
+  if (validationMessage) {
+    validationMessage.remove();
+  }
+}
+
+// email validation
+function isEmailValid(mail_ID) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(mail_ID);
+}
+
+// form validation
+function formValidation() {
+  mail_ID = document.getElementById("Email").value.trim();
+  password = passwordInput.value.trim();
+  subject = document.getElementById("Subject").value.trim();
+  mailBody = document.getElementById("mailBody").value.trim();
+  closing = document.getElementById("Closing").value.trim();
+  const excelFile = document.getElementById("excel").value.trim();
+  dirPath = document.getElementById("dirPath").value.trim();
+
+  const emailInput = document.getElementById("Email");
+  emailInput.addEventListener("focus", () => hideValidationMessage(emailInput));
+  emailInput.addEventListener("input", () => hideValidationMessage(emailInput));
+
+  passwordInput.addEventListener("focus", () => hideValidationMessage(passwordInput));
+  passwordInput.addEventListener("input", () => hideValidationMessage(passwordInput));
+
+  const subjectInput = document.getElementById("Subject");
+  subjectInput.addEventListener("focus", () => hideValidationMessage(subjectInput));
+  subjectInput.addEventListener("input", () => hideValidationMessage(subjectInput));
+
+  const mailBodyInput = document.getElementById("mailBody");
+  mailBodyInput.addEventListener("focus", () => hideValidationMessage(mailBodyInput));
+  mailBodyInput.addEventListener("input", () => hideValidationMessage(mailBodyInput));
+
+  const closingInput = document.getElementById("Closing");
+  closingInput.addEventListener("focus", () => hideValidationMessage(closingInput));
+  closingInput.addEventListener("input", () => hideValidationMessage(closingInput));
+
+  const excelInput = document.getElementById("excel");
+  excelInput.addEventListener("focus", () => hideValidationMessage(excelInput));
+  excelInput.addEventListener("input", () => hideValidationMessage(excelInput));
+
+  const dirPathInput = document.getElementById("dirPath");
+  dirPathInput.addEventListener("focus", () => hideValidationMessage(dirPathInput));
+  dirPathInput.addEventListener("input", () => hideValidationMessage(dirPathInput));
+
+  if (dirPathInput.value === "") {
+    hideValidationMessage(dirPathInput);
+  }
+
+  if (mail_ID.trim() === "") {
+    showValidationMessage(emailInput, "Please enter an email address.");
+    return false;
+  } else if (!isEmailValid(mail_ID)) {
+    showValidationMessage(emailInput, "Please enter a valid email address.");
+    return false;
+  }
+
+  if (password.trim() === "") {
+    showValidationMessage(passwordInput, "Please enter a password.");
+    return false;
+  }
+
+  if (subject.trim() === "") {
+    showValidationMessage(subjectInput, "Please enter a Subject.");
+    return false;
+  }
+
+  if (mailBody.trim() === "") {
+    showValidationMessage(mailBodyInput, "Please enter a Mail Body.");
+    return false;
+  }
+
+  if (closing.trim() === "") {
+    showValidationMessage(closingInput, "Please enter a Closing.");
+    return false;
+  }
+
+  if (excelFile.trim() === "") {
+    showValidationMessage(excelInput, "Please select a file.");
+    return false;
+  } else if (!/\.(csv|xls|xlsx)$/i.test(excelFile)) {
+    showValidationMessage(excelInput, "Please choose a valid Excel CSV, XLS, or XLSX file.");
+    return false;
+  }
+
+  if (dirPath.trim() === "") {
+    showValidationMessage(dirPathInput, "Please choose a directory path.");
+    return false;
+  }
+
+  return true;
+}
+
+// show the success message
+function showMessage(message, isSuccess) {
+  const messageBox = document.getElementById("messageBox");
+  const messageText = document.getElementById("messageText");
+
+  messageText.textContent = message;
+  messageBox.classList.remove(isSuccess ? "error" : "success");
+  messageBox.classList.add(isSuccess ? "success" : "error");
+  messageBox.style.display = "block";
+
+  setTimeout(() => messageBox.style.display = "none", 5000);
+}
+
+// Create a rate limiter with a limit of 1 email per 2 seconds
+const limiter = new Bottleneck({
+  maxConcurrent: 1,
+  minTime: 2000 // 2000ms = 2 seconds
+});
+let mailCount = 0;
+
+// Function to send files as email attachments
+async function sendFiles() {
+  if (!formValidation()) return;
+
+  const transporter = nodemailer.createTransport({
+    service: "hotmail",
+    auth: { user: mail_ID, pass: password },
+    retry: { retries: 5, factor: 2, minTimeout: 1000 }
+  });
+
+  loadingElement.style.display = "block";
+  mailCountBox.style.display = "block";
+  formElement.classList.add("blur");
+
+  const workbook = XLSX.readFile(path1);
+  const sheet_name_list = workbook.SheetNames;
+  const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheet_name_list[0]]);
+
+  const filteredData = data.filter(obj => obj.hasOwnProperty("MAIL ID"));
+
+  if (filteredData.length === 0) {
+    showMessage("Invalid Excel format. No valid data with 'MAIL ID' property found.", false);
+    loadingElement.style.display = "none";
+    mailCountBox.style.display = "none";
+    formElement.classList.remove("blur");
+    return;
+  }
+
+  try {
+    await Promise.all(
+      filteredData.map(async (item) => {
+        let filePath = dirPath;
+        let pan = item["PAN NAME"];
+        let filesInFolder = fs.readdirSync(filePath);
+        let filesToSend = [];
+
+        const matchedFileName = filesInFolder.find(file => file.includes(pan));
+
+        const logTime = () =>
+          new Date().toLocaleString('en-US', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: true
+          });
+
+        if (!matchedFileName) {
+          const msg = `No file found for PAN ${pan}. Skipping...`;
+          showMessage(msg, false);
+          fs.appendFileSync(logFilePath, `${logTime()} - FAILED: ${msg} [Recipient: ${item["MAIL ID"]}]\n`);
+          return;
+        }
+
+        const fullFilePath = path.join(filePath, matchedFileName);
+
+        if (!fs.existsSync(fullFilePath)) {
+          const msg = `Expected PDF file ${matchedFileName} does not exist. Skipping...`;
+          showMessage(msg, false);
+          fs.appendFileSync(logFilePath, `${logTime()} - FAILED: ${msg} [Recipient: ${item["MAIL ID"]}]\n`);
+          return;
+        }
+
+        filesToSend.push(matchedFileName);
+
+        const closingValue = `Thanks & regards,\n${closing} \nInfocus Technologies Pvt ltd`;
+
+        const mailOptions = {
+          from: mail_ID,
+          to: item["MAIL ID"],
+          subject: subject,
+          text: `Dear ${item['NAME']}, \n\n${mailBody}\n\n\n${closingValue}`,
+          attachments: [
+            {
+              filename: matchedFileName,
+              path: fullFilePath,
+            },
+          ],
+        };
+
+        try {
+          await limiter.schedule(() => {
+            return new Promise((resolve, reject) => {
+              transporter.sendMail(mailOptions, function (error, info) {
+                if (error) {
+                  const errorMsg = error.response ? error.message.replace(/^Error:\s(.+?)\s\[.+/, "$1") : "Error sending email.";
+                  showMessage(errorMsg, false);
+                  fs.appendFileSync(logFilePath, `${logTime()} - FAILED: Email NOT sent to: ${item["MAIL ID"]}, Reason: ${error.message}\n`);
+                  mailCountBox.style.display = "none";
+                  reject(error);
+                } else {
+                  console.log("Email sent: " + info.response);
+                  mailCount++;
+                  mailCountNo.textContent = mailCount;
+                  fs.appendFileSync(logFilePath, `${logTime()} - SUCCESS: Email sent to: ${item['MAIL ID']}, Files: ${filesToSend.join(", ")}\n`);
+                  resolve(info);
+                }
+              });
+            });
+          });
+        } catch (error) {
+          console.error("Email sending failed!", error);
+        } finally {
+          filePath = dirPath; // reset for next loop
+        }
+      })
+    );
+
+    mailCountBox.style.display = "none";
+    showMessage(`All Emails Sent Successfully : [ ${mailCount} ]`, true);
+    mailCount = 0;
+  } catch (error) {
+    showMessage(error.toString(), false);
+  } finally {
+    loadingElement.style.display = "none";
+    formElement.classList.remove("blur");
+    mailCountNo.textContent = 0;
+    document.getElementById("formbox1").reset();
+  }
+
+}
+</file>
+
+<file path="main.js">
+const electron = require("electron");
+const url = require("url");
+const path = require("path");
+
+
+// App Object and browser Window object Pulled out from electron
+const { app, BrowserWindow, Menu, ipcMain, dialog } = electron;
+// Set Environment
+// process.env.NODE_ENV = 'production';
+
+let uploadWindow;
+
+// A function will execute when the app is ready
+app.on("ready", function () {
+
+  createFileUpload();
+
+});
+// Handle File Upload
+function createFileUpload() {
+  // An empty object is passed in the browser window constructer because at the starting there is no item in the list
+  uploadWindow = new BrowserWindow({
+    width: 800,
+    height: 800,
+    title: "Multifile Mail Sender",
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      enableRemoteModule: true,
+    },
+    autoHideMenuBar: true,
+    icon: "./assets/icons/win/infocus.ico"
+  });
+  // Process to Load HTML in Main Window
+  uploadWindow.loadURL(
+    url.format({
+      pathname: path.join(__dirname, "uploadWindow2.html"),
+      protocol: "file:",
+      slashes: true,
+    })
+  );
+  // console.log("The Pathname is " + pathname)
+  // Handle Garbage Collection for add item when the app is closed
+  uploadWindow.on("close", function () {
+    uploadWindow = null;
+  });
+}
+
+// Create Menu Template. An array for the list of items
+const mainMenuTemplate = [
+
+  {
+    label: "File Upload",
+    click() {
+      createFileUpload();
+    },
+  }
+];
+// If we are in mac the main menu template will not shown properly it will show only electron as a default menu. For fixing that we have to add first object in the main menu template as a empty object.
+if (process.platform == "darwin") {
+  mainMenuTemplate.unshift({});
+}
+
+//If our app is not in production then developer tools is added to the main menu template.
+if (process.env.NODE_ENV !== "production") {
+  mainMenuTemplate.push({
+    label: "Developer Tools",
+    submenu: [
+      {
+        label: "Toggle Dev Tools",
+        accelerator: process.platform == "darwin" ? "command+I" : "ctrl+I",
+        click(item, focusedWindow) {
+          focusedWindow.toggleDevTools();
+        },
+      },
+      {
+        role: "reload",
+      },
+    ],
+  });
+}
+
+// Retrieve event send by the renderer process for upload
+ipcMain.on("open-file-dialog-for-file", function (event) {
+  if (process.platform === "win32" || process.platform === "linux") {
+    dialog
+      .showOpenDialog(uploadWindow, {
+        properties: ["openFile"],
+      })
+      .then((files) => {
+        // console.log(files);
+        if (files) {
+          event.sender.send("selected-file", files.filePaths);
+        }
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  }
+  else {
+    dialog
+      .showOpenDialog(uploadWindow, {
+        properties: ["openFile", "openDirectory"],
+      })
+      .then((files) => {
+        // console.log(files);
+        if (files) {
+          event.sender.send("selected-file", files.filePaths);
+        }
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  }
+});
+
+ipcMain.on('open-directory-dialog', (event) => {
+  dialog.showOpenDialog({ properties: ['openDirectory'] }).then(result => {
+    if (!result.canceled) {
+      event.sender.send('selected-directory', result.filePaths[0]);
+    }
+  }).catch(err => {
+    console.log(err);
+  });
+});
+</file>
+
+<file path="package.json">
+{
+  "name": "multifile-mail-sender",
+  "version": "1.0.2",
+  "description": "Automatic Mail Sender to the users",
+  "main": "main.js",
+  "author": "Infocus Technologies Pvt Ltd",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "build": "electron-builder",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "archiver": "^5.3.1",
+    "bootstrap": "^5.3.0",
+    "bottleneck": "^2.19.5",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.3",
+    "nodemon": "^3.1.0",
+    "path": "^0.12.7",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^25.4.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.infocus.multifile-mailsender",
+    "productName": "Multifile Mail Sender",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "./assets/icons/win/infocus.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Multifile Mail Sender"
+    }
+  }
+}
+</file>
+
+<file path="uploadWindow2.html">
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style2.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multifile Mail Sender</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@200;400;500;700&family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Mono:wght@200;400;500;700&family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body>
+    <!-- Particle animation canvas -->
+    <canvas id="particle-canvas"></canvas>
+    <!-- my html content -->
+    <div id="mainwrapper">
+      <div class="ring-container" id="mailCount" class="hidden">
+        <div class="ring">
+          <div class="number" id="mailCountNo">0</div>
+        </div>
+      </div>
+
+      <div id="messageBox" class="hidden">
+        <p id="messageText"></p>
+      </div>
+
+      <div id="loadingBox">
+        <div id="loading" class="hidden">
+          <img src="./image/loading3d.gif" alt="Sending..." />
+        </div>
+      </div>
+
+      <form id="formbox1" class="formbox">
+        <div class="logoBox">
+          <div class="logo">
+            <img src="./image/comLogo.png" />
+          </div>
+          <h1>Multifile Mail Sender</h1>
+        </div>
+        
+        <div class="contentone">
+          <input
+            type="email"
+            id="Email"
+            name="Email Id"
+            class="form-control inputColor"
+            placeholder="Email"
+            required
+          />
+          <i class="fa fa-envelope" id="mailIcon"></i>
+        </div>
+
+        <div class="contentone">
+          <input
+            type="password"
+            id="Password"
+            name="Password"
+            autocomplete="current-password"
+            required
+            class="form-control inputColor"
+            placeholder="Password"
+          />
+          <i class="fa fa-eye" id="togglePassword"></i>
+        </div>
+
+        <div class="contentone">
+          <input
+            type="text"
+            id="Subject"
+            name="Subject"
+            required
+            class="form-control inputColor"
+            placeholder="Subject"
+          />
+          <!-- <i class="fa fa-eye" id="togglePassword"></i> -->
+        </div>
+
+        <div class="contentone">
+          <input
+            type="text"
+            id="mailBody"
+            name="Mail Body"
+            required
+            class="form-control inputColor"
+            placeholder="Mail Body"
+          />
+          <!-- <i class="fa fa-eye" id="togglePassword"></i> -->
+        </div>
+
+        <div class="contentone">
+          <input
+            type="text"
+            id="Closing"
+            name="Closing"
+            required
+            class="form-control inputColor"
+            placeholder="Closing Signature"
+          />
+          <!-- <i class="fa fa-eye" id="togglePassword"></i> -->
+        </div>
+
+        <div class="contentone">
+          <input
+            type=""
+            name="text"
+            id="excel"
+            class="form-control inputColor"
+            placeholder="Choose Excel Sheet"
+            readonly
+            required
+          />
+
+          <i class="fa fa-file-excel" id="excelBtn" onclick="upload()"></i>
+        </div>
+
+        <div class="contentone">
+          <input
+            type=""
+            name="text"
+            id="dirPath"
+            class="form-control inputColor"
+            placeholder="Choose Directory Path"
+            readonly
+            required
+          />
+
+          <i
+            class="fa fa-folder-open fa-beat"
+            id="dirPathBtn"
+            onclick="onDirectorySelected()"
+          ></i>
+        </div>
+
+        <div>
+          <button
+            id="sendFiles"
+            type="button"
+            placeholder="upload"
+            class="btnsend"
+          >
+            Send
+          </button>
+          
+        </div>
+
+      
+      </form>
+      <footer>
+        <p>
+          Developed by Infocus Technologies Pvt Ltd © 2025 All Rights Reserved.
+        </p>
+      </footer>
+    </div>
+    <!-- particle animation JavaScript file -->
+    <script src="particle-animation.js"></script>
+    <script src="backupIndex.js"></script>
+  </body>
+</html>
+</file>
+
+</files>

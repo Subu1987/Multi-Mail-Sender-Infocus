@@ -224,11 +224,11 @@ async function sendFiles() {
     await Promise.all(
       filteredData.map(async (item) => {
         let filePath = dirPath;
-        let pan = item["PAN NAME"];
+        let codeIdentifier = item["CODE1"];
         let filesInFolder = fs.readdirSync(filePath);
         let filesToSend = [];
 
-        const matchedFileName = filesInFolder.find(file => file.includes(pan));
+        const matchedFileName = filesInFolder.find(file => file.includes(codeIdentifier));
 
         const logTime = () =>
           new Date().toLocaleString('en-US', {
@@ -242,7 +242,7 @@ async function sendFiles() {
           });
 
         if (!matchedFileName) {
-          const msg = `No file found for PAN ${pan}. Skipping...`;
+          const msg = `No file found for CODE1 ${codeIdentifier}. Skipping...`;
           showMessage(msg, false);
           fs.appendFileSync(logFilePath, `${logTime()} - FAILED: ${msg} [Recipient: ${item["MAIL ID"]}]\n`);
           return;
